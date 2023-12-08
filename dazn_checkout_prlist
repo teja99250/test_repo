@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# Set your GitHub organization name
+ORG_NAME="getndazn"
+
+# Set your personal access token with the necessary permissions
+TOKEN="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"
+
+# Check if a date argument is provided
+if [ -z "$1" ]; then
+    echo "Please provide a date argument in the format YYYY-MM-DD."
+    exit 1
+fi
+
+SINCE_DATE="$1T00:00:00Z" # Assuming the date is in the correct format
+
+# Define the repository name
+REPO_NAME="checkout-service"
+
+echo "Fetching pull requests for $REPO_NAME since $SINCE_DATE"
+
+# Fetch pull requests made since the specified date for the checkout-service repository
+pull_requests_response=$(curl -s -H "Authorization: token $TOKEN" "https://api.github.com/repos/$ORG_NAME/$REPO_NAME/pulls?state=all&sort=created&direction=desc&since=$SINCE_DATE")
+
+# Check if there are pull requests since the specified date
+if [ "$(echo "$pull_requests_response" | jq -r '. | length')" -gt 0 ]; then
+  pr_count=$(echo "$pull_requests_response" | jq -r '. | length')
+  echo "Pull Requests in $REPO_NAME since $SINCE_DATE:"
+  echo "Total Pull Requests: $pr_count"
+
+  # Display pull request details
+  for ((j = 0; j < $pr_count; j++)); do
+    pr_title=$(echo "$pull_requests_response" | jq -r ".[$j].title")
+    pr_author=$(echo "$pull_requests_response" | jq -r ".[$j].user.login")
+    pr_number=$(echo "$pull_requests_response" | jq -r ".[$j].number")
+    echo "Pull Request $((j + 1)): Author: $pr_author, Title: $pr_title, Repository: $REPO_NAME"
+
+    # Fetch commits for the pull request
+    commits_response=$(curl -s -H "Authorization: token $TOKEN" "https://api.github.com/repos/$ORG_NAME/$REPO_NAME/pulls/$pr_number/commits")
+    commit_count=$(echo "$commits_response" | jq -r '. | length')
+    echo "  Total Commits: $commit_count"
+
+    # Display commit details for the pull request
+    for ((k = 0; k < $commit_count; k++)); do
+      commit_sha=$(echo "$commits_response" | jq -r ".[$k].sha")
+      commit_message=$(echo "$commits_response" | jq -r ".[$k].commit.message")
+      commit_author=$(echo "$commits_response" | jq -r ".[$k].commit.author.name")
+      echo "  Commit $((k + 1)): Author: $commit_author, Message: $commit_message, SHA: $commit_sha"
+    done
+  done
+else
+  echo "No pull requests found since $SINCE_DATE."
+fi
+
